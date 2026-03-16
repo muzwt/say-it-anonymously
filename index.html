@@ -19,7 +19,28 @@
   body{background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;min-height:100vh;overflow-x:hidden;}
   body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at 30% 20%,rgba(157,127,212,0.04) 0%,transparent 50%),radial-gradient(ellipse at 70% 80%,rgba(196,85,106,0.03) 0%,transparent 50%);pointer-events:none;z-index:0;}
   .container{max-width:680px;margin:0 auto;padding:0 20px;position:relative;z-index:1;}
-  header{padding:60px 0 40px;border-bottom:1px solid var(--border);margin-bottom:48px;}
+  .notif-wrap{position:relative;}
+  .notif-btn{background:none;border:1px solid var(--border);color:var(--text-muted);width:36px;height:36px;cursor:pointer;border-radius:2px;display:flex;align-items:center;justify-content:center;transition:all 0.2s;position:relative;}
+  .notif-btn:hover{border-color:var(--border-hover);color:var(--text);}
+  .notif-btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+  .notif-badge{position:absolute;top:-5px;right:-5px;background:var(--red);color:#fff;font-family:'DM Mono',monospace;font-size:9px;font-weight:500;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;transition:opacity 0.2s;}
+  .notif-badge.visible{opacity:1;}
+  .notif-panel{position:absolute;top:42px;right:0;width:300px;background:var(--bg2);border:1px solid var(--border);border-radius:2px;z-index:50;display:none;max-height:380px;overflow-y:auto;}
+  .notif-panel.open{display:block;}
+  .notif-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+  .notif-title{font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--text-muted);}
+  .notif-clear{background:none;border:none;color:var(--text-dim);font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;padding:0;transition:color 0.2s;}
+  .notif-clear:hover{color:var(--text);}
+  .notif-item{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.15s;}
+  .notif-item:last-child{border-bottom:none;}
+  .notif-item:hover{background:var(--bg3);}
+  .notif-item.unread{background:rgba(157,127,212,0.05);}
+  .notif-item-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+  .notif-item-label{font-size:11px;color:var(--accent);}
+  .notif-item-time{font-size:10px;color:var(--text-dim);}
+  .notif-item-preview{font-family:'Cormorant Garamond',serif;font-size:14px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .notif-empty{padding:32px 16px;text-align:center;color:var(--text-dim);font-size:11px;letter-spacing:0.1em;}
+  header{padding:60px 0 40px;border-bottom:1px solid var(--border);margin-bottom:48px;display:flex;justify-content:space-between;align-items:flex-end;}
   .logo{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300;letter-spacing:0.1em;margin-bottom:6px;}
   .logo span{color:var(--accent);font-style:italic;}
   .tagline{color:var(--text-muted);font-size:11px;letter-spacing:0.15em;text-transform:uppercase;}
@@ -216,8 +237,23 @@
 <body>
 <div class="container">
   <header>
-    <div class="logo">Say It <span>Anonymously</span></div>
-    <div class="tagline">No names. No judgment. Just honesty.</div>
+    <div>
+      <div class="logo">Say It <span>Anonymously</span></div>
+      <div class="tagline">No names. No judgment. Just honesty.</div>
+    </div>
+    <div class="notif-wrap">
+      <button class="notif-btn" id="notifBtn" onclick="toggleNotifPanel()" title="Notifications">
+        <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="notif-badge" id="notifBadge"></span>
+      </button>
+      <div class="notif-panel" id="notifPanel">
+        <div class="notif-header">
+          <span class="notif-title">Notifications</span>
+          <button class="notif-clear" onclick="clearNotifications()">Mark all read</button>
+        </div>
+        <div id="notifList"><div class="notif-empty">no notifications yet</div></div>
+      </div>
+    </div>
   </header>
 
   <div class="topic-banner" id="topicBanner">
@@ -421,6 +457,98 @@ const reported = JSON.parse(localStorage.getItem('reported')||'{}');
 const bookmarks = JSON.parse(localStorage.getItem('bookmarks')||'{}');
 const myTokens = JSON.parse(localStorage.getItem('myTokens')||'{}');
 let activityLog = JSON.parse(localStorage.getItem('activityLog')||'[]');
+let notifications = JSON.parse(localStorage.getItem('notifications')||'[]');
+let seenReplyCounts = JSON.parse(localStorage.getItem('seenReplyCounts')||'{}');
+
+// Notifications
+function updateNotifBadge(){
+  const unread = notifications.filter(n=>!n.read).length;
+  const badge = document.getElementById('notifBadge');
+  badge.textContent = unread > 9 ? '9+' : unread;
+  badge.classList.toggle('visible', unread > 0);
+}
+
+function addNotification(confId, confText, replyText, replyNick){
+  notifications.unshift({id:Date.now(), confId, confText:confText.slice(0,60), replyText:replyText.slice(0,80), replyNick, time:Date.now(), read:false});
+  if(notifications.length > 50) notifications = notifications.slice(0,50);
+  localStorage.setItem('notifications', JSON.stringify(notifications));
+  updateNotifBadge();
+}
+
+window.toggleNotifPanel = function(){
+  const panel = document.getElementById('notifPanel');
+  panel.classList.toggle('open');
+  if(panel.classList.contains('open')) renderNotifList();
+};
+
+function renderNotifList(){
+  const el = document.getElementById('notifList');
+  if(!notifications.length){el.innerHTML='<div class="notif-empty">no notifications yet</div>';return;}
+  el.innerHTML = notifications.map(n=>`
+    <div class="notif-item${n.read?'':' unread'}" onclick="goToNotif('${n.confId}','${n.id}')">
+      <div class="notif-item-top">
+        <span class="notif-item-label">~${esc(n.replyNick)} replied to your post</span>
+        <span class="notif-item-time">${timeAgo({toMillis:()=>n.time})}</span>
+      </div>
+      <div class="notif-item-preview">${esc(n.replyText)}</div>
+    </div>`).join('');
+}
+
+window.goToNotif = function(confId, notifId){
+  notifications = notifications.map(n=>n.id==notifId?{...n,read:true}:n);
+  localStorage.setItem('notifications', JSON.stringify(notifications));
+  updateNotifBadge();
+  renderNotifList();
+  document.getElementById('notifPanel').classList.remove('open');
+  const card = document.getElementById(`card-${confId}`);
+  if(card){
+    card.scrollIntoView({behavior:'smooth', block:'center'});
+    const replies = document.getElementById(`replies-${confId}`);
+    if(replies && replies.classList.contains('hidden')){
+      replies.classList.remove('hidden');
+      loadReplies(confId);
+    }
+  }
+};
+
+window.clearNotifications = function(){
+  notifications = notifications.map(n=>({...n,read:true}));
+  localStorage.setItem('notifications', JSON.stringify(notifications));
+  updateNotifBadge();
+  renderNotifList();
+};
+
+// Watch replies on owned posts for new notifications
+function watchOwnedReplies(){
+  Object.keys(myTokens).forEach(confId=>{
+    onSnapshot(query(collection(db,'confessions',confId,'replies'),orderBy('createdAt','asc')),snap=>{
+      const count = snap.size;
+      const prev = seenReplyCounts[confId] ?? null;
+      if(prev !== null && count > prev){
+        const newReplies = snap.docs.slice(prev);
+        const myNick = localStorage.getItem('myNick')||'';
+        newReplies.forEach(d=>{
+          const r = d.data();
+          if(r.nickname !== myNick){
+            const conf = allConfessions.find(c=>c.id===confId);
+            addNotification(confId, conf?.text||'', r.text||'', r.nickname||'anon');
+          }
+        });
+      }
+      if(prev === null || count !== prev){
+        seenReplyCounts[confId] = count;
+        localStorage.setItem('seenReplyCounts', JSON.stringify(seenReplyCounts));
+      }
+    });
+  });
+}
+
+document.addEventListener('click', e=>{
+  const wrap = document.querySelector('.notif-wrap');
+  if(wrap && !wrap.contains(e.target)) document.getElementById('notifPanel').classList.remove('open');
+});
+
+updateNotifBadge();
 let slowmodeDelay = parseInt(localStorage.getItem('slowmodeDelay')||'30');
 let filterEnabled = localStorage.getItem('filterEnabled')==='true';
 let customWords = JSON.parse(localStorage.getItem('customWords')||'[]');
@@ -590,6 +718,7 @@ onSnapshot(query(collection(db,'confessions'),orderBy('createdAt','desc')),snap=
   autoDeleteOld(allConfessions);
   renderSorted();
 });
+watchOwnedReplies();
 
 // Submit
 window.submitConfession = async function(){
