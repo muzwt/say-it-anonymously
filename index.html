@@ -85,6 +85,19 @@
   .action-btn svg{width:13px;height:13px;flex-shrink:0;}
   .action-btn.liked svg{fill:var(--heart);stroke:var(--heart);}
   .action-btn.bookmarked svg{fill:var(--gold);stroke:var(--gold);}
+  .op-badge{font-size:9px;color:var(--text-muted);letter-spacing:0.08em;border:1px solid var(--border);padding:1px 5px;border-radius:2px;}
+  .action-btn.op-edit:hover{color:var(--accent);}
+  .action-btn.op-delete:hover{color:var(--red);}
+  .edit-form{padding:16px 24px;border-top:1px solid var(--border);background:var(--bg3);display:none;}
+  .edit-form.open{display:block;}
+  .edit-textarea{width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:300;line-height:1.7;padding:10px 12px;outline:none;resize:none;transition:border-color 0.2s;}
+  .edit-textarea:focus{border-color:var(--accent);}
+  .edit-actions{display:flex;gap:8px;margin-top:10px;justify-content:flex-end;}
+  .edit-save{background:var(--accent-dim);border:1px solid var(--accent);color:var(--accent);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.1em;padding:6px 14px;cursor:pointer;transition:all 0.2s;}
+  .edit-save:hover{background:rgba(157,127,212,0.2);}
+  .edit-cancel{background:none;border:1px solid var(--border);color:var(--text-muted);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.1em;padding:6px 14px;cursor:pointer;transition:all 0.2s;}
+  .edit-cancel:hover{border-color:var(--border-hover);color:var(--text);}
+  .edited-tag{font-size:10px;color:var(--text-dim);margin-left:6px;}
   .report-badge{margin-left:auto;background:var(--red-dim);border:1px solid rgba(196,85,106,0.3);color:var(--red);font-size:10px;padding:2px 8px;border-radius:1px;}
   .replies-section{border-top:1px solid var(--border);background:var(--bg);}
   .replies-section.hidden{display:none;}
@@ -389,6 +402,7 @@ let currentSort = 'new';
 const liked = JSON.parse(localStorage.getItem('liked')||'{}');
 const reported = JSON.parse(localStorage.getItem('reported')||'{}');
 const bookmarks = JSON.parse(localStorage.getItem('bookmarks')||'{}');
+const myTokens = JSON.parse(localStorage.getItem('myTokens')||'{}'); // confessionId -> token
 let slowmodeDelay = parseInt(localStorage.getItem('slowmodeDelay')||'30');
 let filterEnabled = localStorage.getItem('filterEnabled')==='true';
 let customWords = JSON.parse(localStorage.getItem('customWords')||'[]');
@@ -490,7 +504,7 @@ function renderFeed(confessions){
   const feed=document.getElementById('feed');
   const visible=confessions.filter(c=>isAdmin||!c.pending);
   if(!visible.length){
-    feed.innerHTML=currentSort==='bookmarks'?'<div class="empty">No saved confessions yet.</div>':searchQuery?'<div class="no-results">no results found</div>':'<div class="empty">No confessions yet. Be the first.</div>';
+    feed.innerHTML=currentSort==='bookmarks'?'<div class="empty">No saved confessions yet.</div>':'<div class="empty">No confessions yet. Be the first.</div>';
     return;
   }
   const pinned=visible.filter(c=>c.pinned);
@@ -498,6 +512,7 @@ function renderFeed(confessions){
   feed.innerHTML='';
   [...pinned,...rest].forEach(conf=>{
     const isLiked=liked[conf.id],isReported=reported[conf.id],hasReports=(conf.reports||0)>0,isBookmarked=bookmarks[conf.id];
+    const isOwner=!!myTokens[conf.id];
     const card=document.createElement('div');
     card.className=`confession-card${hasReports?' reported-card':''}${conf.pinned?' pinned-card':''}${conf.pending?' pending-card':''}`;
     card.id=`card-${conf.id}`;
@@ -507,9 +522,9 @@ function renderFeed(confessions){
       <div class="card-body">
         <div class="card-meta">
           <span class="card-nick">~${esc(conf.nickname||'anon')}</span>
-          <span class="card-time">${timeAgo(conf.createdAt)}</span>
+          <span class="card-time">${timeAgo(conf.createdAt)}${conf.edited?'<span class="edited-tag">(edited)</span>':''}</span>
         </div>
-        <div class="card-text">${esc(conf.text)}</div>
+        <div class="card-text" id="text-${conf.id}">${esc(conf.text)}</div>
         <div class="card-actions">
           <button class="action-btn${isLiked?' liked':''}" id="like-${conf.id}" onclick="toggleLike('${conf.id}',${conf.likes||0})">
             <svg viewBox="0 0 24 24" fill="${isLiked?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
@@ -526,9 +541,21 @@ function renderFeed(confessions){
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             ${isReported?'reported':'report'}
           </button>
+          ${isOwner?`
+          <button class="action-btn op-edit" onclick="openEditForm('${conf.id}')">edit</button>
+          <button class="action-btn op-delete" onclick="opDeleteConfession('${conf.id}')">delete</button>
+          `:''}
           ${hasReports?`<span class="report-badge">${conf.reports} report${conf.reports>1?'s':''}</span>`:''}
         </div>
       </div>
+      ${isOwner?`
+      <div class="edit-form" id="edit-form-${conf.id}">
+        <textarea class="edit-textarea" id="edit-text-${conf.id}" rows="3" maxlength="600">${esc(conf.text)}</textarea>
+        <div class="edit-actions">
+          <button class="edit-cancel" onclick="closeEditForm('${conf.id}')">Cancel</button>
+          <button class="edit-save" onclick="saveEdit('${conf.id}')">Save</button>
+        </div>
+      </div>`:''}
       <div class="replies-section hidden" id="replies-${conf.id}">
         <div id="replies-list-${conf.id}"></div>
         <div class="reply-form">
@@ -557,10 +584,14 @@ window.submitConfession = async function(){
   const rawText=document.getElementById('confessionText').value.trim();
   if(!rawText)return;
   const text=filterText(rawText);
+  const token=Math.random().toString(36).slice(2)+Date.now().toString(36);
   const btn=document.getElementById('submitBtn');
   btn.disabled=true;btn.textContent='posting...';
   try{
-    await addDoc(collection(db,'confessions'),{nickname:nick,text,likes:0,replyCount:0,reports:0,isAdmin,pending:approvalMode&&!isAdmin,createdAt:serverTimestamp()});
+    const ref=await addDoc(collection(db,'confessions'),{nickname:nick,text,likes:0,replyCount:0,reports:0,isAdmin,pending:approvalMode&&!isAdmin,createdAt:serverTimestamp()});
+    myTokens[ref.id]=token;
+    localStorage.setItem('myTokens',JSON.stringify(myTokens));
+    localStorage.setItem('myNick',nick);
     document.getElementById('confessionText').value='';
     document.getElementById('charCount').textContent='0';
     showToast(approvalMode&&!isAdmin?'submitted — awaiting approval':'confession posted');
@@ -586,6 +617,38 @@ window.toggleLike = async function(id,current){
   await updateDoc(doc(db,'confessions',id),{likes:increment(nowLiked?1:-1)});
 };
 
+// OP edit/delete
+window.openEditForm = function(id){
+  const form=document.getElementById(`edit-form-${id}`);
+  if(form)form.classList.add('open');
+};
+
+window.closeEditForm = function(id){
+  const form=document.getElementById(`edit-form-${id}`);
+  if(form)form.classList.remove('open');
+};
+
+window.saveEdit = async function(id){
+  const ta=document.getElementById(`edit-text-${id}`);
+  const raw=ta?.value.trim();
+  if(!raw)return;
+  const text=filterText(raw);
+  await updateDoc(doc(db,'confessions',id),{text,edited:true});
+  document.getElementById(`text-${id}`).textContent=text;
+  closeEditForm(id);
+  showToast('confession updated');
+};
+
+window.opDeleteConfession = async function(id){
+  if(!confirm('Delete your confession?'))return;
+  const rs=await getDocs(collection(db,'confessions',id,'replies'));
+  for(const r of rs.docs)await deleteDoc(r.ref);
+  await deleteDoc(doc(db,'confessions',id));
+  delete myTokens[id];
+  localStorage.setItem('myTokens',JSON.stringify(myTokens));
+  showToast('confession deleted');
+};
+
 // Bookmark
 window.toggleBookmark = function(id){
   bookmarks[id]=!bookmarks[id];
@@ -608,11 +671,17 @@ window.toggleReplies = function(id){
 };
 
 function loadReplies(confId){
+  const confNick=(allConfessions.find(c=>c.id===confId)||{}).nickname||'';
   const list=document.getElementById(`replies-list-${confId}`);
   list.innerHTML='<div class="loading" style="padding:16px 24px">loading...</div>';
   onSnapshot(query(collection(db,'confessions',confId,'replies'),orderBy('createdAt','asc')),snap=>{
     if(snap.empty){list.innerHTML='';return;}
-    list.innerHTML=snap.docs.map(d=>{const r=d.data();return`<div class="reply-item"><div class="reply-meta"><span class="reply-nick">~${esc(r.nickname||'anon')}</span><span class="reply-time">${timeAgo(r.createdAt)}</span></div><div class="reply-text">${esc(r.text)}</div></div>`;}).join('');
+    list.innerHTML=snap.docs.map(d=>{
+      const r=d.data();
+      const myNick=localStorage.getItem('myNick')||'';
+      const isOP=confNick&&r.nickname&&r.nickname===confNick&&myTokens[confId];
+      return`<div class="reply-item"><div class="reply-meta"><span class="reply-nick">~${esc(r.nickname||'anon')}${isOP?'<span class="op-badge">OP</span>':''}</span><span class="reply-time">${timeAgo(r.createdAt)}</span></div><div class="reply-text">${esc(r.text)}</div></div>`;
+    }).join('');
   });
 }
 
