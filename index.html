@@ -168,7 +168,7 @@
   </header>
   <div class="locked-banner" id="lockedBanner">
     <span class="locked-banner-icon">🔒</span>
-    <span class="locked-banner-text">This site is currently locked. New posts and replies are disabled.</span>
+    <span class="locked-banner-text" id="lockedBannerText">This site is currently locked. New posts and replies are disabled.</span>
   </div>
   <div class="post-form" id="postForm">
     <label class="form-label">Your confession</label>
@@ -216,8 +216,22 @@
         <div class="settings-row">
           <div><div class="settings-label">Lock down site</div><div class="settings-desc">Prevent all new posts and replies from users</div></div>
           <div class="toggle-wrap">
-            <label class="toggle"><input type="checkbox" id="lockToggle" onchange="saveLockdown()"><span class="toggle-slider" style=""></span></label>
+            <label class="toggle"><input type="checkbox" id="lockToggle" onchange="saveLockdown()"><span class="toggle-slider"></span></label>
             <span style="font-size:10px;color:var(--text-muted)" id="lockStatus">unlocked</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">Lockdown reason</div><div class="settings-desc">Message shown to users when site is locked</div></div>
+          <div class="settings-control" style="flex-direction:column;align-items:flex-end;gap:8px">
+            <select id="lockReasonPreset" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:11px;padding:6px 10px;outline:none;width:220px;" onchange="onPresetChange()">
+              <option value="">— choose a reason —</option>
+              <option value="Under maintenance. Back soon.">🔧 Maintenance</option>
+              <option value="Taking a break. Back later.">☕ Taking a break</option>
+              <option value="Temporarily closed for moderation.">🛡 Moderation</option>
+              <option value="custom">✏️ Custom reason...</option>
+            </select>
+            <input type="text" id="lockReasonCustom" placeholder="type your reason..." maxlength="120" style="display:none;width:220px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:11px;padding:6px 10px;outline:none;" onfocus="this.style.borderColor='var(--admin)'" onblur="this.style.borderColor='var(--border)'">
+            <button class="settings-save" onclick="saveLockReason()">Save reason</button>
           </div>
         </div>
         <div class="settings-row">
@@ -296,11 +310,14 @@
   let filterEnabled = localStorage.getItem('filterEnabled') === 'true';
   let customWords = JSON.parse(localStorage.getItem('customWords')||'[]');
   let siteLocked = localStorage.getItem('siteLocked') === 'true';
+  let lockReason = localStorage.getItem('lockReason') || 'This site is currently locked. New posts and replies are disabled.';
   let lastPostTime = 0;
 
   function applyLockdown() {
     const form = document.getElementById('postForm');
     const banner = document.getElementById('lockedBanner');
+    const bannerText = document.getElementById('lockedBannerText');
+    bannerText.textContent = lockReason;
     if (siteLocked && !isAdmin) {
       form.style.display = 'none';
       banner.classList.add('active');
@@ -414,7 +431,7 @@
   window.submitConfession = async function() {
     if (siteLocked && !isAdmin) { showToast('site is locked'); return; }
     if (!isAdmin && slowmodeDelay > 0 && Date.now() - lastPostTime < slowmodeDelay * 1000) return;
-    const nick = document.getElementById('nickname').value.trim()||'anon';
+    const nick = filterText(document.getElementById('nickname').value.trim()||'anon');
     const rawText = document.getElementById('confessionText').value.trim();
     if (!rawText) return;
     const text = filterText(rawText);
@@ -457,7 +474,7 @@
 
   window.submitReply = async function(confId) {
     if (siteLocked && !isAdmin) { showToast('site is locked'); return; }
-    const nick = document.getElementById('nickname').value.trim()||'anon';
+    const nick = filterText(document.getElementById('nickname').value.trim()||'anon');
     const input = document.getElementById(`reply-input-${confId}`);
     const rawText = input.value.trim(); if (!rawText) return;
     const text = filterText(rawText);
@@ -513,7 +530,37 @@
     document.getElementById('lockToggle').checked = siteLocked;
     document.getElementById('lockStatus').textContent = siteLocked ? 'locked' : 'unlocked';
     document.getElementById('lockStatus').style.color = siteLocked ? 'var(--red)' : 'var(--text-muted)';
+    const presets = ['Under maintenance. Back soon.','Taking a break. Back later.','Temporarily closed for moderation.'];
+    const preset = document.getElementById('lockReasonPreset');
+    const custom = document.getElementById('lockReasonCustom');
+    if (presets.includes(lockReason)) {
+      preset.value = lockReason;
+      custom.style.display = 'none';
+    } else {
+      preset.value = 'custom';
+      custom.style.display = '';
+      custom.value = lockReason;
+    }
   }
+
+  window.onPresetChange = function() {
+    const val = document.getElementById('lockReasonPreset').value;
+    const custom = document.getElementById('lockReasonCustom');
+    custom.style.display = val === 'custom' ? '' : 'none';
+    if (val === 'custom') custom.focus();
+  };
+
+  window.saveLockReason = function() {
+    const val = document.getElementById('lockReasonPreset').value;
+    if (val === 'custom') {
+      lockReason = document.getElementById('lockReasonCustom').value.trim() || lockReason;
+    } else if (val) {
+      lockReason = val;
+    }
+    localStorage.setItem('lockReason', lockReason);
+    applyLockdown();
+    showToast('lockdown reason saved');
+  };
 
   window.saveLockdown = function() {
     siteLocked = document.getElementById('lockToggle').checked;
