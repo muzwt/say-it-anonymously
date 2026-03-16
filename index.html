@@ -23,7 +23,10 @@
   .notif-btn{background:none;border:1px solid var(--border);color:var(--text-muted);width:36px;height:36px;cursor:pointer;border-radius:10px;display:flex;align-items:center;justify-content:center;transition:all 0.2s;position:relative;}
   .notif-btn:hover{border-color:var(--accent);color:var(--accent);}
   .notif-btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
-  .notif-badge{position:absolute;top:-5px;right:-5px;background:var(--red);color:#fff;font-family:"DM Mono",monospace;font-size:9px;font-weight:500;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;transition:opacity 0.2s;}
+  .notif-badge{position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;font-family:"Syne",sans-serif;font-weight:700;font-size:9px;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;transition:opacity 0.2s;padding:0 4px;border:2px solid var(--bg);}
+  .notif-badge.visible{opacity:1;}
+  @keyframes notifPulse{0%{transform:scale(1)}50%{transform:scale(1.5)}100%{transform:scale(1)}}
+  .notif-badge.pulse{animation:notifPulse 0.4s ease;}
   .notif-badge.visible{opacity:1;}
   .notif-panel{position:absolute;top:42px;right:0;width:300px;background:var(--bg3);border:1px solid var(--border);border-radius:16px;z-index:50;display:none;max-height:380px;overflow-y:auto;}
   .notif-panel.open{display:block;}
@@ -652,6 +655,7 @@ window.doLogin = async function(){
     localStorage.setItem('myNick',currentUser.username);
     hideAuthScreen();
     applyUserUI();
+    watchOwnedReplies();
   }catch(e){err.textContent='error: '+e.message;}
 };
 
@@ -674,6 +678,7 @@ window.doSignup = async function(){
     localStorage.setItem('myNick',username);
     hideAuthScreen();
     applyUserUI();
+    watchOwnedReplies();
   }catch(e){err.textContent='error: '+e.message;}
 };
 
@@ -721,6 +726,8 @@ function addNotification(confId,confText,replyText,replyNick){
   if(notifications.length>50) notifications=notifications.slice(0,50);
   localStorage.setItem('notifications',JSON.stringify(notifications));
   updateNotifBadge();
+  const badge=document.getElementById('notifBadge');
+  if(badge){badge.classList.remove('pulse');void badge.offsetWidth;badge.classList.add('pulse');}
 }
 
 function renderNotifList(){
@@ -764,27 +771,34 @@ window.clearNotifications = function(){
 
 function watchOwnedReplies(){
   if(!currentUser) return;
-  // Watch posts where the logged-in user is the real author
-  onSnapshot(query(collection(db,'confessions'),where('realUsername','==',currentUser.username)),snap=>{
+  const watched = new Set();
+
+  function watchRepliesFor(confId){
+    if(watched.has(confId)) return;
+    watched.add(confId);
+    onSnapshot(query(collection(db,'confessions',confId,'replies'),orderBy('createdAt','asc')),rSnap=>{
+      const count=rSnap.size;
+      const prev=seenReplyCounts[confId]??null;
+      if(prev!==null && count>prev){
+        rSnap.docs.slice(prev).forEach(rd=>{
+          const r=rd.data();
+          if(r.realUsername===currentUser.username) return;
+          const conf=allConfessions.find(c=>c.id===confId);
+          addNotification(confId,conf?.text||'',r.text||'',r.nickname||'anonymous');
+        });
+      }
+      seenReplyCounts[confId]=count;
+      localStorage.setItem('seenReplyCounts',JSON.stringify(seenReplyCounts));
+    });
+  }
+
+  // Watch ALL confessions and filter client-side — no index needed
+  onSnapshot(query(collection(db,'confessions'),orderBy('createdAt','desc')),snap=>{
     snap.docs.forEach(d=>{
-      const confId=d.id;
-      onSnapshot(query(collection(db,'confessions',confId,'replies'),orderBy('createdAt','asc')),rSnap=>{
-        const count=rSnap.size;
-        const prev=seenReplyCounts[confId]??null;
-        if(prev!==null&&count>prev){
-          rSnap.docs.slice(prev).forEach(rd=>{
-            const r=rd.data();
-            // Don't notify for your own replies
-            if(r.realUsername===currentUser.username) return;
-            const conf=allConfessions.find(c=>c.id===confId);
-            addNotification(confId,conf?.text||'',r.text||'',r.nickname||'anonymous');
-          });
-        }
-        if(prev===null||count!==prev){
-          seenReplyCounts[confId]=count;
-          localStorage.setItem('seenReplyCounts',JSON.stringify(seenReplyCounts));
-        }
-      });
+      const data=d.data();
+      if(data.realUsername===currentUser.username || data.nickname===currentUser.username){
+        watchRepliesFor(d.id);
+      }
     });
   });
 }
