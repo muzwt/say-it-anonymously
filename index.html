@@ -1094,7 +1094,8 @@ window.submitReply = async function(confId){
   if(!isAdmin&&bannedNames.some(b=>(b.name||b)===(currentUser.username||'').toLowerCase())){showToast('you are banned');return;}
   const conf=allConfessions.find(c=>c.id===confId);
   const forceAnon=conf&&conf.anonPost&&conf.realUsername===currentUser.username;
-  const nick=(anonMode||forceAnon)?'anonymous':filterText(currentUser.username);
+  const forceReal=conf&&conf.anonPost===false&&conf.realUsername===currentUser.username;
+  const nick=(forceAnon||(anonMode&&!forceReal))?'anonymous':filterText(currentUser.username);
   const input=document.getElementById(`reply-input-${confId}`);
   const rawText=input.value.trim(); if(!rawText) return;
   const text=filterText(rawText);
