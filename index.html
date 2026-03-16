@@ -152,7 +152,10 @@
   .modal-confirm-report:hover { background:rgba(196,85,106,0.2); }
   .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px); background:var(--bg3); border:1px solid var(--border); color:var(--text-muted); font-size:11px; letter-spacing:0.1em; padding:10px 20px; border-radius:1px; transition:transform 0.3s ease; z-index:300; white-space:nowrap; }
   .toast.show { transform:translateX(-50%) translateY(0); }
-  .loading { text-align:center; color:var(--text-dim); padding:40px; font-size:11px; letter-spacing:0.2em; }
+  .locked-banner { background:rgba(196,85,106,0.08); border:1px solid rgba(196,85,106,0.25); border-radius:2px; padding:14px 20px; margin-bottom:32px; display:none; align-items:center; gap:12px; }
+  .locked-banner.active { display:flex; }
+  .locked-banner-icon { color:var(--red); font-size:16px; flex-shrink:0; }
+  .locked-banner-text { font-size:11px; color:var(--red); letter-spacing:0.05em; }
   .empty { text-align:center; color:var(--text-dim); padding:60px 20px; font-family:'Cormorant Garamond',serif; font-style:italic; font-size:18px; }
   footer { padding:48px 0 32px; text-align:center; color:var(--text-dim); font-size:10px; letter-spacing:0.15em; }
 </style>
@@ -163,7 +166,11 @@
     <div class="logo">Say It <span>Anonymously</span></div>
     <div class="tagline">No names. No judgment. Just honesty.</div>
   </header>
-  <div class="post-form">
+  <div class="locked-banner" id="lockedBanner">
+    <span class="locked-banner-icon">🔒</span>
+    <span class="locked-banner-text">This site is currently locked. New posts and replies are disabled.</span>
+  </div>
+  <div class="post-form" id="postForm">
     <label class="form-label">Your confession</label>
     <div class="nick-row">
       <span class="nick-prefix">~</span>
@@ -206,6 +213,13 @@
     <div class="admin-section" id="tab-all"><div id="all-list"><div class="admin-empty">loading...</div></div></div>
     <div class="admin-section" id="tab-settings">
       <div class="admin-settings">
+        <div class="settings-row">
+          <div><div class="settings-label">Lock down site</div><div class="settings-desc">Prevent all new posts and replies from users</div></div>
+          <div class="toggle-wrap">
+            <label class="toggle"><input type="checkbox" id="lockToggle" onchange="saveLockdown()"><span class="toggle-slider" style=""></span></label>
+            <span style="font-size:10px;color:var(--text-muted)" id="lockStatus">unlocked</span>
+          </div>
+        </div>
         <div class="settings-row">
           <div><div class="settings-label">Slowmode</div><div class="settings-desc">Seconds users must wait between posts</div></div>
           <div class="settings-control">
@@ -281,7 +295,21 @@
   let slowmodeDelay = parseInt(localStorage.getItem('slowmodeDelay')||'30');
   let filterEnabled = localStorage.getItem('filterEnabled') === 'true';
   let customWords = JSON.parse(localStorage.getItem('customWords')||'[]');
+  let siteLocked = localStorage.getItem('siteLocked') === 'true';
   let lastPostTime = 0;
+
+  function applyLockdown() {
+    const form = document.getElementById('postForm');
+    const banner = document.getElementById('lockedBanner');
+    if (siteLocked && !isAdmin) {
+      form.style.display = 'none';
+      banner.classList.add('active');
+    } else {
+      form.style.display = '';
+      banner.classList.remove('active');
+    }
+  }
+  applyLockdown();
 
   const DEFAULT_BAD_WORDS = ['fuck','shit','ass','bitch','bastard','dick','pussy','cunt','cock','nigger','nigga','faggot','fag','whore','slut','retard','kys'];
 
@@ -384,6 +412,7 @@
   });
 
   window.submitConfession = async function() {
+    if (siteLocked && !isAdmin) { showToast('site is locked'); return; }
     if (!isAdmin && slowmodeDelay > 0 && Date.now() - lastPostTime < slowmodeDelay * 1000) return;
     const nick = document.getElementById('nickname').value.trim()||'anon';
     const rawText = document.getElementById('confessionText').value.trim();
@@ -427,6 +456,7 @@
   }
 
   window.submitReply = async function(confId) {
+    if (siteLocked && !isAdmin) { showToast('site is locked'); return; }
     const nick = document.getElementById('nickname').value.trim()||'anon';
     const input = document.getElementById(`reply-input-${confId}`);
     const rawText = input.value.trim(); if (!rawText) return;
@@ -480,7 +510,19 @@
     document.getElementById('filterToggle').checked = filterEnabled;
     document.getElementById('filterStatus').textContent = filterEnabled ? 'on' : 'off';
     document.getElementById('customWords').value = customWords.join(', ');
+    document.getElementById('lockToggle').checked = siteLocked;
+    document.getElementById('lockStatus').textContent = siteLocked ? 'locked' : 'unlocked';
+    document.getElementById('lockStatus').style.color = siteLocked ? 'var(--red)' : 'var(--text-muted)';
   }
+
+  window.saveLockdown = function() {
+    siteLocked = document.getElementById('lockToggle').checked;
+    localStorage.setItem('siteLocked', siteLocked);
+    document.getElementById('lockStatus').textContent = siteLocked ? 'locked' : 'unlocked';
+    document.getElementById('lockStatus').style.color = siteLocked ? 'var(--red)' : 'var(--text-muted)';
+    applyLockdown();
+    showToast(siteLocked ? '🔒 site locked' : '🔓 site unlocked');
+  };
 
   window.saveSlowmode = function() {
     slowmodeDelay = parseInt(document.getElementById('slowmodeSeconds').value)||0;
