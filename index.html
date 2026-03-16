@@ -1030,7 +1030,7 @@ function confessionCard(conf){
   const hasReports=(conf.reports||0)>0;
   const cls=`confession-card${conf.pinned?' pinned-card':''}${hasReports&&isAdmin?' reported-card':''}${conf.pending?' pending-card':''}`;
   return`<div class="${cls}" id="card-${conf.id}">
-    ${conf.pinned?'<div class="pin-banner">📌 Pinned</div>':''}
+    ${conf.pinned?'<div class="pin-banner">Pinned</div>':''}
     ${conf.pending?'<div class="pending-banner">⏳ Awaiting approval</div>':''}
     <div class="card-body">
       <div class="card-meta">
