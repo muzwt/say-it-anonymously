@@ -1026,6 +1026,9 @@ function confessionCard(conf){
         </button>
         ${!reported[conf.id]?`<button class="action-btn report-btn" onclick="openReport('${conf.id}')">report</button>`:'<span style="color:var(--text-dim);font-size:11px;">reported</span>'}
         ${isOwner?`<button class="action-btn op-edit" onclick="openEditForm('${conf.id}')">edit</button><button class="action-btn op-delete" onclick="deleteOwnPost('${conf.id}')">delete</button>`:''}
+        <button class="action-btn" onclick="sharePost('${conf.id}')" style="margin-left:auto;">
+          <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        </button>
         ${hasReports&&isAdmin?`<span class="report-badge">${conf.reports} report${conf.reports>1?'s':''}</span>`:''}
       </div>
     </div>
@@ -1579,7 +1582,18 @@ window.banNickname=async function(){
   renderBannedList(); showToast(`~${val} banned`);
 };
 
-// ── PROFILES ──────────────────────────────────────────────────
+window.sharePost = function(id){
+  const url = `${location.origin}${location.pathname}?post=${id}`;
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(url).then(()=>showToast('link copied!'));
+  } else {
+    const el=document.createElement('input');
+    el.value=url; document.body.appendChild(el);
+    el.select(); document.execCommand('copy');
+    document.body.removeChild(el);
+    showToast('link copied!');
+  }
+};
 window.openProfile = async function(username, e){
   if(e) e.stopPropagation();
   if(!username||username==='anonymous') return;
@@ -1647,6 +1661,20 @@ document.addEventListener('keydown',function(e){
 updateNotifBadge();
 watchOwnedReplies();
 if(currentUser){ applyUserUI(); } else { showAuthScreen(); }
+
+// Handle shared post link
+const sharedPostId = new URLSearchParams(location.search).get('post');
+if(sharedPostId){
+  const check = setInterval(()=>{
+    const card = document.getElementById(`card-${sharedPostId}`);
+    if(card){
+      clearInterval(check);
+      card.scrollIntoView({behavior:'smooth', block:'center'});
+      card.style.borderColor='var(--accent)';
+      setTimeout(()=>card.style.borderColor='',2500);
+    }
+  }, 300);
+}
 
 </script>
 </body>
