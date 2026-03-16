@@ -156,6 +156,17 @@
   .admin-reply-nick{color:var(--accent);font-size:10px;margin-bottom:4px;}
   .admin-btn-delete-reply{background:none;border:1px solid rgba(196,85,106,0.2);color:var(--red);font-family:'DM Mono',monospace;font-size:10px;padding:4px 10px;cursor:pointer;transition:all 0.2s;white-space:nowrap;flex-shrink:0;}
   .admin-btn-delete-reply:hover{background:var(--red-dim);}
+  .log-entry{padding:14px 0;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-start;}
+  .log-entry:last-child{border-bottom:none;}
+  .log-icon{width:24px;height:24px;border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;margin-top:1px;}
+  .log-icon.edit{background:var(--accent-dim);color:var(--accent);border:1px solid rgba(157,127,212,0.2);}
+  .log-icon.delete{background:var(--red-dim);color:var(--red);border:1px solid rgba(196,85,106,0.2);}
+  .log-body{flex:1;}
+  .log-action{font-size:11px;color:var(--text);margin-bottom:4px;}
+  .log-action strong{color:var(--accent);}
+  .log-preview{font-family:'Cormorant Garamond',serif;font-size:14px;color:var(--text-muted);font-style:italic;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:560px;}
+  .log-time{font-size:10px;color:var(--text-dim);}
+  .log-empty{text-align:center;color:var(--text-dim);padding:40px;font-size:11px;letter-spacing:0.15em;}
   .admin-empty{text-align:center;color:var(--text-dim);padding:40px;font-size:11px;letter-spacing:0.15em;}
   .admin-settings{padding:4px 0;}
   .settings-row{display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--border);gap:16px;}
@@ -267,12 +278,20 @@
       <button class="admin-tab active" onclick="switchTab('reported')">Reported</button>
       <button class="admin-tab" onclick="switchTab('pending')">Pending</button>
       <button class="admin-tab" onclick="switchTab('all')">All posts</button>
+      <button class="admin-tab" onclick="switchTab('log')">Activity log</button>
       <button class="admin-tab" onclick="switchTab('banned')">Banned</button>
       <button class="admin-tab" onclick="switchTab('settings')">Settings</button>
     </div>
     <div class="admin-section active" id="tab-reported"><div id="reported-list"><div class="admin-empty">loading...</div></div></div>
     <div class="admin-section" id="tab-pending"><div id="pending-list"><div class="admin-empty">loading...</div></div></div>
     <div class="admin-section" id="tab-all"><div id="all-list"><div class="admin-empty">loading...</div></div></div>
+    <div class="admin-section" id="tab-log">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <span style="font-size:10px;color:var(--text-muted);letter-spacing:0.15em;text-transform:uppercase;">Edit &amp; delete history</span>
+        <button class="admin-btn-clear admin-btn" onclick="clearLog()" style="font-size:10px;padding:5px 12px;">Clear log</button>
+      </div>
+      <div id="activity-log-list"></div>
+    </div>
     <div class="admin-section" id="tab-banned">
       <div id="banned-list"></div>
       <div style="margin-top:16px;display:flex;gap:8px;">
@@ -402,7 +421,8 @@ let currentSort = 'new';
 const liked = JSON.parse(localStorage.getItem('liked')||'{}');
 const reported = JSON.parse(localStorage.getItem('reported')||'{}');
 const bookmarks = JSON.parse(localStorage.getItem('bookmarks')||'{}');
-const myTokens = JSON.parse(localStorage.getItem('myTokens')||'{}'); // confessionId -> token
+const myTokens = JSON.parse(localStorage.getItem('myTokens')||'{}');
+let activityLog = JSON.parse(localStorage.getItem('activityLog')||'[]');
 let slowmodeDelay = parseInt(localStorage.getItem('slowmodeDelay')||'30');
 let filterEnabled = localStorage.getItem('filterEnabled')==='true';
 let customWords = JSON.parse(localStorage.getItem('customWords')||'[]');
@@ -632,20 +652,24 @@ window.saveEdit = async function(id){
   const ta=document.getElementById(`edit-text-${id}`);
   const raw=ta?.value.trim();
   if(!raw)return;
+  const orig=allConfessions.find(c=>c.id===id);
   const text=filterText(raw);
   await updateDoc(doc(db,'confessions',id),{text,edited:true});
   document.getElementById(`text-${id}`).textContent=text;
   closeEditForm(id);
+  addLogEntry('edit',orig?.nickname||'anon',orig?.text||'',id);
   showToast('confession updated');
 };
 
 window.opDeleteConfession = async function(id){
   if(!confirm('Delete your confession?'))return;
+  const orig=allConfessions.find(c=>c.id===id);
   const rs=await getDocs(collection(db,'confessions',id,'replies'));
   for(const r of rs.docs)await deleteDoc(r.ref);
   await deleteDoc(doc(db,'confessions',id));
   delete myTokens[id];
   localStorage.setItem('myTokens',JSON.stringify(myTokens));
+  addLogEntry('delete',orig?.nickname||'anon',orig?.text||'',id);
   showToast('confession deleted');
 };
 
@@ -733,11 +757,12 @@ window.openAdmin=function(){document.getElementById('adminPanel').classList.add(
 window.closeAdmin=function(){document.getElementById('adminPanel').classList.remove('active');};
 
 window.switchTab=function(tab){
-  const tabs=['reported','pending','all','banned','settings'];
+  const tabs=['reported','pending','all','log','banned','settings'];
   document.querySelectorAll('.admin-tab').forEach((t,i)=>t.classList.toggle('active',tabs[i]===tab));
   tabs.forEach(t=>document.getElementById(`tab-${t}`).classList.toggle('active',t===tab));
   if(tab==='settings')loadSettingsUI();
   else if(tab==='banned')renderBannedList();
+  else if(tab==='log')renderActivityLog();
   else loadAdminData();
 };
 
@@ -821,6 +846,35 @@ window.clearReports=async function(id){
   await updateDoc(doc(db,'confessions',id),{reports:0});
   document.getElementById(`admin-card-${id}`)?.remove();
   showToast('reports cleared');
+};
+
+// Activity log
+function addLogEntry(type, nickname, text, confId){
+  activityLog.unshift({type, nickname, text:text.slice(0,120), confId, time:Date.now()});
+  if(activityLog.length>100)activityLog=activityLog.slice(0,100);
+  localStorage.setItem('activityLog',JSON.stringify(activityLog));
+}
+
+function renderActivityLog(){
+  const el=document.getElementById('activity-log-list');
+  if(!activityLog.length){el.innerHTML='<div class="log-empty">no activity yet</div>';return;}
+  el.innerHTML=activityLog.map(e=>`
+    <div class="log-entry">
+      <div class="log-icon ${e.type}">${e.type==='edit'?'✎':'✕'}</div>
+      <div class="log-body">
+        <div class="log-action"><strong>~${esc(e.nickname)}</strong> ${e.type==='edit'?'edited':'deleted'} their confession</div>
+        <div class="log-preview">"${esc(e.text)}${e.text.length>=120?'…':''}"</div>
+        <div class="log-time">${new Date(e.time).toLocaleString()}</div>
+      </div>
+    </div>`).join('');
+}
+
+window.clearLog=function(){
+  if(!confirm('Clear the entire activity log?'))return;
+  activityLog=[];
+  localStorage.setItem('activityLog','[]');
+  renderActivityLog();
+  showToast('log cleared');
 };
 
 // Banned names
