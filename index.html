@@ -656,6 +656,7 @@ window.doLogin = async function(){
     hideAuthScreen();
     applyUserUI();
     watchOwnedReplies();
+    watchOwnedReplies();
   }catch(e){err.textContent='error: '+e.message;}
 };
 
@@ -678,6 +679,7 @@ window.doSignup = async function(){
     localStorage.setItem('myNick',username);
     hideAuthScreen();
     applyUserUI();
+    watchOwnedReplies();
     watchOwnedReplies();
   }catch(e){err.textContent='error: '+e.message;}
 };
