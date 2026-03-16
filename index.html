@@ -234,7 +234,24 @@
   .modal-confirm-admin:hover{opacity:0.88;}
   .modal-confirm-report{background:var(--red);border:none;color:#fff;font-family:"Syne",sans-serif;font-weight:700;font-size:11px;padding:9px 18px;cursor:pointer;transition:opacity 0.15s;border-radius:8px;}
   .modal-confirm-report:hover{opacity:0.88;}
-  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--bg3);border:1px solid var(--border);color:var(--text-muted);font-size:11px;letter-spacing:0.1em;padding:10px 20px;border-radius:10px;transition:transform 0.3s ease;z-index:400;white-space:nowrap;}
+  .profile-modal{background:var(--bg3);border:1px solid var(--border);border-radius:20px;width:480px;max-width:95vw;max-height:80vh;overflow-y:auto;}
+  .profile-header{padding:24px 24px 16px;border-bottom:1px solid var(--border);}
+  .profile-avatar{width:48px;height:48px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:#0d0d0d;margin-bottom:12px;}
+  .profile-username{font-family:'Syne',sans-serif;font-weight:800;font-size:1.2rem;color:var(--text);display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+  .profile-joined{font-size:11px;color:var(--text-muted);}
+  .profile-stats{display:flex;gap:24px;margin-top:12px;}
+  .profile-stat{display:flex;flex-direction:column;gap:2px;}
+  .profile-stat-num{font-family:'Syne',sans-serif;font-weight:700;font-size:18px;color:var(--text);}
+  .profile-stat-label{font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;}
+  .profile-posts{padding:16px 24px;}
+  .profile-posts-title{font-family:'Syne',sans-serif;font-weight:700;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px;}
+  .profile-post-item{padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;}
+  .profile-post-item:last-child{border-bottom:none;}
+  .profile-post-item:hover .profile-post-text{color:var(--accent);}
+  .profile-post-text{font-size:14px;color:var(--text);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color 0.2s;}
+  .profile-post-meta{display:flex;gap:12px;font-size:11px;color:var(--text-dim);}
+  .profile-close{background:none;border:1px solid var(--border);color:var(--text-muted);font-family:'DM Mono',monospace;font-size:11px;padding:6px 14px;cursor:pointer;border-radius:8px;transition:all 0.2s;float:right;}
+  .profile-close:hover{border-color:#444;color:var(--text);}
   .toast.show{transform:translateX(-50%) translateY(0);}
   .loading{text-align:center;color:var(--text-dim);padding:40px;font-size:11px;letter-spacing:0.2em;}
   .empty{text-align:center;color:var(--text-dim);padding:60px 20px;font-family:"Syne",sans-serif;font-weight:600;font-size:16px;}
@@ -563,6 +580,25 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div class="modal-overlay" id="profileModal">
+  <div class="profile-modal">
+    <div class="profile-header">
+      <button class="profile-close" onclick="closeProfile()">✕</button>
+      <div class="profile-avatar" id="profileAvatar">?</div>
+      <div class="profile-username" id="profileUsername">—</div>
+      <div class="profile-joined" id="profileJoined"></div>
+      <div class="profile-stats">
+        <div class="profile-stat"><div class="profile-stat-num" id="profilePostCount">0</div><div class="profile-stat-label">Posts</div></div>
+        <div class="profile-stat"><div class="profile-stat-num" id="profileLikes">0</div><div class="profile-stat-label">Likes</div></div>
+      </div>
+    </div>
+    <div class="profile-posts">
+      <div class="profile-posts-title">Posts</div>
+      <div id="profilePostsList"><div class="loading">loading...</div></div>
+    </div>
+  </div>
+</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -971,7 +1007,7 @@ function confessionCard(conf){
     ${conf.pending?'<div class="pending-banner">⏳ Awaiting approval</div>':''}
     <div class="card-body">
       <div class="card-meta">
-        <span class="card-nick">~${esc(conf.nickname||'anonymous')}${conf.nickname!=='anonymous'&&verifiedUsers.includes((conf.realUsername||conf.nickname||'').toLowerCase())?'<span class="verified-badge">✓</span>':''}</span>
+        <span class="card-nick" style="cursor:pointer;" onclick="openProfile('${esc(conf.realUsername||conf.nickname||'anonymous')}',event)">~${esc(conf.nickname||'anonymous')}${conf.nickname!=='anonymous'&&verifiedUsers.includes((conf.realUsername||conf.nickname||'').toLowerCase())?'<span class="verified-badge">✓</span>':''}</span>
         <span class="card-time">${timeAgo(conf.createdAt)}</span>
       </div>
       <div class="card-text">${esc(conf.text)}${conf.edited?'<span class="edited-tag">(edited)</span>':''}</div>
@@ -1093,7 +1129,7 @@ function loadReplies(confId,confNick){
       // OP = reply was made by the original confession author
       const replyAuthor=r.realUsername||r.nickname||'';
       const isOP=confRealAuthor&&replyAuthor&&confRealAuthor===replyAuthor;
-      return`<div class="reply-item"><div class="reply-meta"><span class="reply-nick">~${esc(r.nickname||'anonymous')}${r.nickname!=='anonymous'&&verifiedUsers.includes((r.realUsername||r.nickname||'').toLowerCase())?'<span class="verified-badge">✓</span>':''}${isOP?'<span class="op-badge">OP</span>':''}</span><span class="reply-time">${timeAgo(r.createdAt)}</span></div><div class="reply-text">${esc(r.text)}</div></div>`;
+      return`<div class="reply-item"><div class="reply-meta"><span class="reply-nick" style="cursor:pointer;" onclick="openProfile('${esc(r.realUsername||r.nickname||'anonymous')}',event)">~${esc(r.nickname||'anonymous')}${r.nickname!=='anonymous'&&verifiedUsers.includes((r.realUsername||r.nickname||'').toLowerCase())?'<span class="verified-badge">✓</span>':''}${isOP?'<span class="op-badge">OP</span>':''}</span><span class="reply-time">${timeAgo(r.createdAt)}</span></div><div class="reply-text">${esc(r.text)}</div></div>`;
     }).join('');
   });
 }
@@ -1542,7 +1578,55 @@ window.banNickname=async function(){
   renderBannedList(); showToast(`~${val} banned`);
 };
 
-// ── INIT ──────────────────────────────────────────────────────
+// ── PROFILES ──────────────────────────────────────────────────
+window.openProfile = async function(username, e){
+  if(e) e.stopPropagation();
+  if(!username||username==='anonymous') return;
+  document.getElementById('profileModal').classList.add('active');
+  document.getElementById('profilePostsList').innerHTML='<div class="loading">loading...</div>';
+  document.getElementById('profileAvatar').textContent=username[0].toUpperCase();
+  document.getElementById('profileUsername').innerHTML='~'+esc(username)+(verifiedUsers.includes(username.toLowerCase())?'<span class="verified-badge">✓</span>':'');
+  document.getElementById('profileJoined').textContent='';
+  document.getElementById('profilePostCount').textContent='0';
+  document.getElementById('profileLikes').textContent='0';
+
+  // Get user info
+  try{
+    const userSnap=await getDocs(query(collection(db,'users'),where('username','==',username.toLowerCase())));
+    if(!userSnap.empty){
+      const u=userSnap.docs[0].data();
+      if(u.createdAt) document.getElementById('profileJoined').textContent='Joined '+new Date(u.createdAt.toMillis()).toLocaleDateString();
+    }
+  }catch(e){}
+
+  // Get their posts
+  const posts=allConfessions.filter(c=>c.realUsername===username&&c.nickname!=='anonymous'&&!c.pending);
+  const totalLikes=posts.reduce((sum,c)=>sum+(c.likes||0),0);
+  document.getElementById('profilePostCount').textContent=posts.length;
+  document.getElementById('profileLikes').textContent=totalLikes;
+
+  if(!posts.length){
+    document.getElementById('profilePostsList').innerHTML='<div style="color:var(--text-dim);font-size:13px;padding:8px 0;">no public posts yet</div>';
+    return;
+  }
+  document.getElementById('profilePostsList').innerHTML=posts.map(p=>`
+    <div class="profile-post-item" onclick="closeProfile();document.getElementById('card-${p.id}')?.scrollIntoView({behavior:'smooth',block:'center'})">
+      <div class="profile-post-text">${esc(p.text)}</div>
+      <div class="profile-post-meta">
+        <span>♥ ${p.likes||0}</span>
+        <span>💬 ${p.replyCount||0}</span>
+        <span>${timeAgo(p.createdAt)}</span>
+      </div>
+    </div>`).join('');
+};
+
+window.closeProfile=function(){
+  document.getElementById('profileModal').classList.remove('active');
+};
+
+document.getElementById('profileModal').addEventListener('click',function(e){
+  if(e.target===this) closeProfile();
+});
 document.addEventListener('click',e=>{
   const notifPanel=document.getElementById('notifPanel');
   const notifBtn=document.getElementById('notifBtn');
