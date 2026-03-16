@@ -103,11 +103,6 @@
   .action-btn svg{width:13px;height:13px;flex-shrink:0;}
   .action-btn.liked svg{fill:var(--heart);stroke:var(--heart);}
   .action-btn.bookmarked svg{fill:var(--gold);stroke:var(--gold);}
-  .reactions-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
-  .reaction-btn{background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:13px;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:4px;color:var(--text-muted);}
-  .reaction-btn:hover{border-color:var(--border-hover);background:var(--bg2);}
-  .reaction-btn.reacted{border-color:var(--accent);background:var(--accent-dim);color:var(--accent);}
-  .reaction-count{font-family:'DM Mono',monospace;font-size:10px;}
   .report-badge{margin-left:auto;background:var(--red-dim);border:1px solid rgba(196,85,106,0.3);color:var(--red);font-size:10px;padding:2px 8px;border-radius:1px;}
   .replies-section{border-top:1px solid var(--border);background:var(--bg);}
   .replies-section.hidden{display:none;}
@@ -401,7 +396,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const ADMIN_PASSWORD = "Oranges";
-const REACTIONS = ['😂','😢','😮','❤️','🔥'];
 let isAdmin = false;
 let allConfessions = [];
 let currentSort = 'new';
@@ -410,7 +404,6 @@ let searchQuery = '';
 // localStorage state
 const liked = JSON.parse(localStorage.getItem('liked')||'{}');
 const reported = JSON.parse(localStorage.getItem('reported')||'{}');
-const reacted = JSON.parse(localStorage.getItem('reacted')||'{}');
 const bookmarks = JSON.parse(localStorage.getItem('bookmarks')||'{}');
 let slowmodeDelay = parseInt(localStorage.getItem('slowmodeDelay')||'30');
 let filterEnabled = localStorage.getItem('filterEnabled')==='true';
@@ -559,7 +552,6 @@ function renderFeed(confessions){
     const card=document.createElement('div');
     card.className=`confession-card${hasReports?' reported-card':''}${conf.pinned?' pinned-card':''}${isCotd?' cotd-card':''}${conf.pending?' pending-card':''}`;
     card.id=`card-${conf.id}`;
-    const reactionBtns=REACTIONS.map(e=>`<button class="reaction-btn${reacted[conf.id+'_'+e]?' reacted':''}" onclick="toggleReaction('${conf.id}','${e}')">${e}<span class="reaction-count">${conf.reactions?.[e]||0}</span></button>`).join('');
     card.innerHTML=`
       ${conf.pinned?'<div class="pin-banner">📌 Pinned</div>':''}
       ${isCotd?'<div class="cotd-banner">🏆 Confession of the day</div>':''}
@@ -570,7 +562,6 @@ function renderFeed(confessions){
           <span class="card-time">${timeAgo(conf.createdAt)}</span>
         </div>
         <div class="card-text">${esc(conf.text)}</div>
-        <div class="reactions-row">${reactionBtns}</div>
         <div class="card-actions">
           <button class="action-btn${isLiked?' liked':''}" id="like-${conf.id}" onclick="toggleLike('${conf.id}',${conf.likes||0})">
             <svg viewBox="0 0 24 24" fill="${isLiked?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
@@ -580,7 +571,7 @@ function renderFeed(confessions){
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             <span id="replycount-${conf.id}">${conf.replyCount||0}</span>
           </button>
-          <button class="action-btn${isBookmarked?' bookmarked':''}" onclick="toggleBookmark('${conf.id}')">
+          <button class="action-btn${isBookmarked?' bookmarked':''}" id="bookmark-${conf.id}" onclick="toggleBookmark('${conf.id}')">
             <svg viewBox="0 0 24 24" fill="${isBookmarked?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
           </button>
           <button class="action-btn report-btn" onclick="openReport('${conf.id}')" ${isReported?'disabled style="opacity:0.3"':''}>
@@ -621,7 +612,7 @@ window.submitConfession = async function(){
   const btn=document.getElementById('submitBtn');
   btn.disabled=true;btn.textContent='posting...';
   try{
-    await addDoc(collection(db,'confessions'),{nickname:nick,text,likes:0,replyCount:0,reports:0,reactions:{},isAdmin,pending:approvalMode&&!isAdmin,createdAt:serverTimestamp()});
+    await addDoc(collection(db,'confessions'),{nickname:nick,text,likes:0,replyCount:0,reports:0,isAdmin,pending:approvalMode&&!isAdmin,createdAt:serverTimestamp()});
     document.getElementById('confessionText').value='';
     document.getElementById('charCount').textContent='0';
     showToast(approvalMode&&!isAdmin?'submitted — awaiting approval':'confession posted');
@@ -633,12 +624,18 @@ window.submitConfession = async function(){
 
 // Like
 window.toggleLike = async function(id,current){
-  if(liked[id])return;
-  liked[id]=true;localStorage.setItem('liked',JSON.stringify(liked));
   const btn=document.getElementById(`like-${id}`);
-  btn.classList.add('liked');btn.querySelector('svg').setAttribute('fill','currentColor');
-  document.getElementById(`likes-${id}`).textContent=current+1;
-  await updateDoc(doc(db,'confessions',id),{likes:increment(1)});
+  const countEl=document.getElementById(`likes-${id}`);
+  const isLiked=liked[id];
+  liked[id]=!isLiked;
+  if(!liked[id])delete liked[id];
+  localStorage.setItem('liked',JSON.stringify(liked));
+  const nowLiked=!!liked[id];
+  btn.classList.toggle('liked',nowLiked);
+  btn.querySelector('svg').setAttribute('fill',nowLiked?'currentColor':'none');
+  const newCount=current+(nowLiked?1:-1);
+  countEl.textContent=Math.max(0,newCount);
+  await updateDoc(doc(db,'confessions',id),{likes:increment(nowLiked?1:-1)});
 };
 
 // Bookmark
@@ -646,17 +643,13 @@ window.toggleBookmark = function(id){
   bookmarks[id]=!bookmarks[id];
   if(!bookmarks[id])delete bookmarks[id];
   localStorage.setItem('bookmarks',JSON.stringify(bookmarks));
-  renderSorted();
+  const btn=document.getElementById(`bookmark-${id}`);
+  if(btn){
+    btn.classList.toggle('bookmarked',!!bookmarks[id]);
+    btn.querySelector('svg').setAttribute('fill',bookmarks[id]?'currentColor':'none');
+  }
+  if(currentSort==='bookmarks')renderSorted();
   showToast(bookmarks[id]?'saved':'removed from saved');
-};
-
-// Reaction
-window.toggleReaction = async function(id,emoji){
-  const key=id+'_'+emoji;
-  if(reacted[key])return;
-  reacted[key]=true;localStorage.setItem('reacted',JSON.stringify(reacted));
-  const field=`reactions.${emoji}`;
-  await updateDoc(doc(db,'confessions',id),{[field]:increment(1)});
 };
 
 // Replies
