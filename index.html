@@ -228,6 +228,43 @@
   .loading{text-align:center;color:var(--text-dim);padding:40px;font-size:11px;letter-spacing:0.2em;}
   .empty{text-align:center;color:var(--text-dim);padding:60px 20px;font-family:"Syne",sans-serif;font-weight:600;font-size:16px;}
   footer{padding:48px 0 32px;text-align:center;color:var(--text-dim);font-size:10px;letter-spacing:0.15em;}
+
+  /* Auth screen */
+  .auth-screen{display:none;position:fixed;inset:0;background:var(--bg);z-index:500;align-items:center;justify-content:center;padding:20px;}
+  .auth-screen.active{display:flex;}
+  .auth-box{width:100%;max-width:400px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:32px;}
+  .auth-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.6rem;letter-spacing:-0.03em;color:var(--accent);margin-bottom:4px;}
+  .auth-tagline{font-size:11px;color:var(--text-muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:28px;}
+  .auth-tabs{display:flex;gap:4px;margin-bottom:24px;}
+  .auth-tab{flex:1;background:none;border:1px solid var(--border);color:var(--text-muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;padding:8px;cursor:pointer;transition:all 0.2s;border-radius:8px;}
+  .auth-tab.active{border-color:var(--accent);color:var(--accent);background:var(--accent-dim);}
+  .auth-field{margin-bottom:16px;}
+  .auth-label{font-family:'Syne',sans-serif;font-weight:700;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;display:block;}
+  .auth-input{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:10px 14px;outline:none;transition:border-color 0.2s,box-shadow 0.2s;}
+  .auth-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(232,255,71,0.08);}
+  .auth-input::placeholder{color:var(--text-dim);}
+  .auth-btn{width:100%;background:var(--accent);border:none;color:#0d0d0d;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;padding:12px;border-radius:10px;cursor:pointer;transition:opacity 0.15s;margin-top:4px;}
+  .auth-btn:hover{opacity:0.88;}
+  .auth-btn:active{transform:scale(0.98);}
+  .auth-error{color:var(--red);font-size:11px;margin-top:10px;min-height:16px;}
+  /* User pill in header */
+  .user-pill{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:5px 12px 5px 8px;cursor:pointer;transition:border-color 0.2s;}
+  .user-pill:hover{border-color:var(--border-hover);}
+  .user-avatar{width:22px;height:22px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:10px;color:#0d0d0d;flex-shrink:0;}
+  .user-name{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .user-menu{position:absolute;top:42px;right:0;background:var(--bg3);border:1px solid var(--border);border-radius:12px;z-index:50;display:none;min-width:160px;overflow:hidden;}
+  .user-menu.open{display:block;}
+  .user-menu-item{padding:10px 16px;font-size:12px;color:var(--text-muted);cursor:pointer;transition:background 0.15s;display:flex;align-items:center;gap:8px;}
+  .user-menu-item:hover{background:var(--bg2);color:var(--text);}
+  .user-menu-item.danger{color:var(--red);}
+  .user-menu-item.danger:hover{background:var(--red-dim);}
+  .anon-toggle{display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;user-select:none;}
+  .anon-toggle-box{width:36px;height:20px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;position:relative;transition:all 0.2s;flex-shrink:0;}
+  .anon-toggle-box::before{content:'';position:absolute;width:12px;height:12px;left:3px;top:3px;background:var(--text-muted);border-radius:50%;transition:all 0.2s;}
+  .anon-toggle-box.on{background:rgba(232,255,71,0.15);border-color:var(--accent);}
+  .anon-toggle-box.on::before{transform:translateX(16px);background:var(--accent);}
+  .anon-toggle-label{font-size:12px;color:var(--text-muted);}
+  .user-wrap{position:relative;}
 </style>
 </head>
 <body>
@@ -237,17 +274,29 @@
       <div class="logo">Say It <span>Anonymously</span></div>
       <div class="tagline">No names. No judgment. Just honesty.</div>
     </div>
-    <div class="notif-wrap">
-      <button class="notif-btn" id="notifBtn" onclick="toggleNotifPanel()" title="Notifications">
-        <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <span class="notif-badge" id="notifBadge"></span>
-      </button>
-      <div class="notif-panel" id="notifPanel">
-        <div class="notif-header">
-          <span class="notif-title">Notifications</span>
-          <button class="notif-clear" onclick="clearNotifications()">Mark all read</button>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="notif-wrap">
+        <button class="notif-btn" id="notifBtn" onclick="toggleNotifPanel()" title="Notifications">
+          <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="notif-badge" id="notifBadge"></span>
+        </button>
+        <div class="notif-panel" id="notifPanel">
+          <div class="notif-header">
+            <span class="notif-title">Notifications</span>
+            <button class="notif-clear" onclick="clearNotifications()">Mark all read</button>
+          </div>
+          <div id="notifList"><div class="notif-empty">no notifications yet</div></div>
         </div>
-        <div id="notifList"><div class="notif-empty">no notifications yet</div></div>
+      </div>
+      <div class="user-wrap">
+        <div class="user-pill" id="userPill" onclick="toggleUserMenu()">
+          <div class="user-avatar" id="userAvatar">?</div>
+          <span class="user-name" id="userNameDisplay">Account</span>
+        </div>
+        <div class="user-menu" id="userMenu">
+          <div class="user-menu-item" onclick="closeUserMenu()"><span>👤</span><span id="menuUsername">—</span></div>
+          <div class="user-menu-item danger" onclick="logoutUser()"><span>↩</span><span>Log out</span></div>
+        </div>
       </div>
     </div>
   </header>
@@ -264,10 +313,12 @@
   </div>
 
   <div class="post-form" id="postForm">
-    <label class="form-label">Your confession</label>
-    <div class="nick-row">
-      <span class="nick-prefix">~</span>
-      <input type="text" id="nickname" placeholder="choose a name" maxlength="20" autocomplete="off">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <label class="form-label" style="margin-bottom:0;">Your confession</label>
+      <label class="anon-toggle" id="anonToggleWrap" onclick="toggleAnonMode()">
+        <div class="anon-toggle-box" id="anonBox"></div>
+        <span class="anon-toggle-label" id="anonLabel">Post as <strong id="anonNameDisplay" style="color:var(--text)"></strong></span>
+      </label>
     </div>
     <textarea id="confessionText" placeholder="What's on your mind..." maxlength="600" rows="4"></textarea>
     <div class="form-footer">
@@ -291,6 +342,47 @@
   <div id="feed"><div class="loading">loading...</div></div>
   <footer>say it anonymously &mdash; no logs, no traces</footer>
 </div>
+
+<!-- Auth screen -->
+<div class="auth-screen" id="authScreen">
+  <div class="auth-box">
+    <div class="auth-logo">Say It Anonymously</div>
+    <div class="auth-tagline">No judgment. Just honesty.</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="loginTab" onclick="switchAuthTab('login')">Log in</button>
+      <button class="auth-tab" id="signupTab" onclick="switchAuthTab('signup')">Sign up</button>
+    </div>
+    <div id="loginForm">
+      <div class="auth-field">
+        <label class="auth-label">Username</label>
+        <input type="text" class="auth-input" id="loginUsername" placeholder="your username" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('loginPassword').focus()">
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">Password</label>
+        <input type="password" class="auth-input" id="loginPassword" placeholder="your password" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <button class="auth-btn" onclick="doLogin()">Log in</button>
+      <div class="auth-error" id="loginError"></div>
+    </div>
+    <div id="signupForm" style="display:none;">
+      <div class="auth-field">
+        <label class="auth-label">Choose a username</label>
+        <input type="text" class="auth-input" id="signupUsername" placeholder="e.g. shadow99" maxlength="20" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('signupPassword').focus()">
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">Password</label>
+        <input type="password" class="auth-input" id="signupPassword" placeholder="choose a password" onkeydown="if(event.key==='Enter')document.getElementById('signupPassword2').focus()">
+      </div>
+      <div class="auth-field">
+        <label class="auth-label">Confirm password</label>
+        <input type="password" class="auth-input" id="signupPassword2" placeholder="repeat password" onkeydown="if(event.key==='Enter')doSignup()">
+      </div>
+      <button class="auth-btn" onclick="doSignup()">Create account</button>
+      <div class="auth-error" id="signupError"></div>
+    </div>
+  </div>
+</div>
+
 
 <button class="admin-trigger" onclick="openAdminLogin()" title="Admin">
   <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -491,6 +583,114 @@ let seenReplyCounts = JSON.parse(localStorage.getItem('seenReplyCounts')||'{}');
 // Persistent browser ID
 let browserId = localStorage.getItem('browserId');
 if(!browserId){ browserId = Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem('browserId', browserId); }
+
+// ── AUTH SYSTEM ──────────────────────────────────────────────
+let currentUser = JSON.parse(sessionStorage.getItem('currentUser')||'null');
+let anonMode = false;
+
+function hashPassword(p){
+  // simple djb2 hash — not cryptographic but avoids plain text
+  let h=5381; for(let i=0;i<p.length;i++) h=((h<<5)+h)+p.charCodeAt(i); return(h>>>0).toString(36);
+}
+
+function showAuthScreen(){
+  document.getElementById('authScreen').classList.add('active');
+}
+function hideAuthScreen(){
+  document.getElementById('authScreen').classList.remove('active');
+}
+
+window.switchAuthTab = function(tab){
+  document.getElementById('loginTab').classList.toggle('active',tab==='login');
+  document.getElementById('signupTab').classList.toggle('active',tab==='signup');
+  document.getElementById('loginForm').style.display=tab==='login'?'':'none';
+  document.getElementById('signupForm').style.display=tab==='signup'?'':'none';
+  document.getElementById('loginError').textContent='';
+  document.getElementById('signupError').textContent='';
+};
+
+window.doLogin = async function(){
+  const username=document.getElementById('loginUsername').value.trim().toLowerCase();
+  const password=document.getElementById('loginPassword').value;
+  const err=document.getElementById('loginError');
+  if(!username||!password){err.textContent='fill in both fields';return;}
+  const snap=await getDocs(query(collection(db,'users'),where('username','==',username)));
+  if(snap.empty){err.textContent='username not found';return;}
+  const userData=snap.docs[0].data();
+  if(userData.password!==hashPassword(password)){err.textContent='incorrect password';return;}
+  currentUser={username:userData.username,uid:snap.docs[0].id};
+  sessionStorage.setItem('currentUser',JSON.stringify(currentUser));
+  localStorage.setItem('myNick',currentUser.username);
+  hideAuthScreen();
+  applyUserUI();
+};
+
+window.doSignup = async function(){
+  const username=document.getElementById('signupUsername').value.trim().toLowerCase();
+  const password=document.getElementById('signupPassword').value;
+  const password2=document.getElementById('signupPassword2').value;
+  const err=document.getElementById('signupError');
+  if(!username||!password){err.textContent='fill in all fields';return;}
+  if(username.length<3){err.textContent='username must be 3+ characters';return;}
+  if(!/^[a-z0-9_]+$/.test(username)){err.textContent='letters, numbers and _ only';return;}
+  if(password.length<6){err.textContent='password must be 6+ characters';return;}
+  if(password!==password2){err.textContent='passwords do not match';return;}
+  const existing=await getDocs(query(collection(db,'users'),where('username','==',username)));
+  if(!existing.empty){err.textContent='username already taken';return;}
+  const ref=await addDoc(collection(db,'users'),{username,password:hashPassword(password),createdAt:serverTimestamp()});
+  currentUser={username,uid:ref.id};
+  sessionStorage.setItem('currentUser',JSON.stringify(currentUser));
+  localStorage.setItem('myNick',username);
+  hideAuthScreen();
+  applyUserUI();
+};
+
+window.logoutUser = function(){
+  currentUser=null;
+  sessionStorage.removeItem('currentUser');
+  sessionStorage.removeItem('isAdmin');
+  isAdmin=false;
+  anonMode=false;
+  closeUserMenu();
+  applyUserUI();
+  showAuthScreen();
+};
+
+window.toggleUserMenu = function(){
+  document.getElementById('userMenu').classList.toggle('open');
+};
+window.closeUserMenu = function(){
+  document.getElementById('userMenu').classList.remove('open');
+};
+
+window.toggleAnonMode = function(){
+  anonMode=!anonMode;
+  document.getElementById('anonBox').classList.toggle('on',anonMode);
+  document.getElementById('anonLabel').innerHTML=anonMode
+    ? 'Posting as <strong style="color:var(--text-muted)">anonymous</strong>'
+    : 'Post as <strong style="color:var(--text)">' + esc(currentUser?.username||'') + '</strong>';
+};
+
+function applyUserUI(){
+  if(currentUser){
+    const initial=(currentUser.username[0]||'?').toUpperCase();
+    document.getElementById('userAvatar').textContent=initial;
+    document.getElementById('userNameDisplay').textContent=currentUser.username;
+    document.getElementById('menuUsername').textContent='@'+currentUser.username;
+    document.getElementById('anonBox').classList.remove('on');
+    document.getElementById('anonLabel').innerHTML='Post as <strong style="color:var(--text)">' + esc(currentUser.username) + '</strong>';
+    anonMode=false;
+  }
+}
+
+document.addEventListener('click',e=>{
+  const wrap=document.querySelector('.user-wrap');
+  if(wrap&&!wrap.contains(e.target)) closeUserMenu();
+});
+
+// Show auth or apply UI on load
+if(currentUser){ applyUserUI(); } else { showAuthScreen(); }
+// ─────────────────────────────────────────────────────────────
 
 // Notifications
 function updateNotifBadge(){
@@ -811,8 +1011,8 @@ watchOwnedReplies();
 window.submitConfession = async function(){
   if(siteLocked&&!isAdmin){showToast('site is locked');return;}
   if(!isAdmin&&slowmodeDelay>0&&Date.now()-lastPostTime<slowmodeDelay*1000)return;
-  const rawNick=document.getElementById('nickname').value.trim()||'anon';
-  const nick=filterText(rawNick);
+  if(!currentUser){showAuthScreen();return;}
+  const nick=anonMode?'anon':filterText(currentUser.username);
   if(!isAdmin&&bannedNames.some(b=>b.browserId&&b.browserId===browserId)){showToast('you are banned');return;}
   const rawText=document.getElementById('confessionText').value.trim();
   if(!rawText)return;
@@ -915,7 +1115,7 @@ function loadReplies(confId){
     if(snap.empty){list.innerHTML='';return;}
     list.innerHTML=snap.docs.map(d=>{
       const r=d.data();
-      const myNick=localStorage.getItem('myNick')||'';
+      const myNick=currentUser?currentUser.username:'';
       const isOP=confNick&&r.nickname&&r.nickname===confNick&&myTokens[confId];
       return`<div class="reply-item"><div class="reply-meta"><span class="reply-nick">~${esc(r.nickname||'anon')}${isOP?'<span class="op-badge">OP</span>':''}</span><span class="reply-time">${timeAgo(r.createdAt)}</span></div><div class="reply-text">${esc(r.text)}</div></div>`;
     }).join('');
@@ -924,8 +1124,8 @@ function loadReplies(confId){
 
 window.submitReply = async function(confId){
   if(siteLocked&&!isAdmin){showToast('site is locked');return;}
-  const rawNick=document.getElementById('nickname').value.trim()||'anon';
-  const nick=filterText(rawNick);
+  if(!currentUser){showAuthScreen();return;}
+  const nick=anonMode?'anon':filterText(currentUser.username);
   if(!isAdmin&&bannedNames.some(b=>b.browserId&&b.browserId===browserId)){showToast('you are banned');return;}
   const input=document.getElementById(`reply-input-${confId}`);
   const rawText=input.value.trim();if(!rawText)return;
