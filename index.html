@@ -782,19 +782,27 @@ function watchOwnedReplies(){
   watchRepliesForConf = function(confId){
     if(watched.has(confId)) return;
     watched.add(confId);
+    let initialized = false;
     onSnapshot(query(collection(db,'confessions',confId,'replies'),orderBy('createdAt','asc')),rSnap=>{
       const count=rSnap.size;
-      const prev=seenReplyCounts[confId]??null;
-      if(prev!==null && count>prev){
+      if(!initialized){
+        // First snapshot — just record current count, don't notify
+        seenReplyCounts[confId]=count;
+        localStorage.setItem('seenReplyCounts',JSON.stringify(seenReplyCounts));
+        initialized=true;
+        return;
+      }
+      const prev=seenReplyCounts[confId]??0;
+      if(count>prev){
         rSnap.docs.slice(prev).forEach(rd=>{
           const r=rd.data();
           if(r.realUsername===currentUser.username) return;
           const conf=allConfessions.find(c=>c.id===confId);
           addNotification(confId,conf?.text||'',r.text||'',r.nickname||'anonymous');
         });
+        seenReplyCounts[confId]=count;
+        localStorage.setItem('seenReplyCounts',JSON.stringify(seenReplyCounts));
       }
-      seenReplyCounts[confId]=count;
-      localStorage.setItem('seenReplyCounts',JSON.stringify(seenReplyCounts));
     });
   };
 
