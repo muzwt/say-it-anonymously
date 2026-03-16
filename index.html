@@ -715,19 +715,6 @@ window.toggleNotifPanel = function(){
   if(panel.classList.contains('open')) renderNotifList();
 };
 
-function renderNotifList(){
-  const el = document.getElementById('notifList');
-  if(!notifications.length){el.innerHTML='<div class="notif-empty">no notifications yet</div>';return;}
-  el.innerHTML = notifications.map(n=>`
-    <div class="notif-item${n.read?'':' unread'}" onclick="goToNotif('${n.confId}','${n.id}')">
-      <div class="notif-item-top">
-        <span class="notif-item-label">~${esc(n.replyNick)} replied to your post</span>
-        <span class="notif-item-time">${timeAgo({toMillis:()=>n.time})}</span>
-      </div>
-      <div class="notif-item-preview">${esc(n.replyText)}</div>
-    </div>`).join('');
-}
-
 window.goToNotif = function(confId, notifId){
   notifications = notifications.map(n=>n.id==notifId?{...n,read:true}:n);
   localStorage.setItem('notifications', JSON.stringify(notifications));
@@ -938,6 +925,19 @@ function timeAgo(ts){
   if(s<86400)return`${Math.floor(s/3600)}h ago`;return`${Math.floor(s/86400)}d ago`;
 }
 function esc(t){return(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function renderNotifList(){
+  const el = document.getElementById('notifList');
+  if(!notifications.length){el.innerHTML='<div class="notif-empty">no notifications yet</div>';return;}
+  el.innerHTML = notifications.map(n=>`
+    <div class="notif-item${n.read?'':' unread'}" onclick="goToNotif('${n.confId}','${n.id}')">
+      <div class="notif-item-top">
+        <span class="notif-item-label">~${esc(n.replyNick)} replied to your post</span>
+        <span class="notif-item-time">${timeAgo({toMillis:()=>n.time})}</span>
+      </div>
+      <div class="notif-item-preview">${esc(n.replyText)}</div>
+    </div>`).join('');
+}
 
 // Render feed
 function renderFeed(confessions){
@@ -1174,7 +1174,10 @@ window.checkPassword=function(){
 };
 
 window.openAdmin=function(){document.getElementById('adminPanel').classList.add('active');loadAdminData();};
-window.closeAdmin=function(){document.getElementById('adminPanel').classList.remove('active');};
+window.closeAdmin=function(){
+  document.getElementById('adminPanel').classList.remove('active');
+  if(accountsUnsubscribe){accountsUnsubscribe();accountsUnsubscribe=null;}
+};
 
 window.switchTab=function(tab){
   const tabs=['reported','pending','all','log','bans','accounts','settings'];
@@ -1394,11 +1397,51 @@ window.banByUsername = async function(){
 };
 
 // Accounts tab
-async function loadAccountsTab(){
+let accountsUnsubscribe = null;
+
+function loadAccountsTab(){
   const el=document.getElementById('accounts-list');
   el.innerHTML='<div class="admin-empty">loading...</div>';
-  try{
-    const snap=await getDocs(collection(db,'users'));
+  // Unsubscribe previous listener if any
+  if(accountsUnsubscribe){accountsUnsubscribe();accountsUnsubscribe=null;}
+  accountsUnsubscribe=onSnapshot(collection(db,'users'),snap=>{
+    if(snap.empty){el.innerHTML='<div class="admin-empty">no accounts yet</div>';return;}
+    const isBanned=name=>bannedNames.some(b=>(b.name||b)===name.toLowerCase());
+    el.innerHTML=snap.docs.map(d=>{
+      const u=d.data();
+      const uid=d.id;
+      const banned=isBanned(u.username);
+      return`<div class="admin-card" id="acct-${uid}" style="margin-bottom:10px;${banned?'border-color:rgba(255,80,80,0.3);':''}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:var(--accent);">~${esc(u.username)}${banned?'<span style="margin-left:8px;font-size:10px;color:var(--red);background:var(--red-dim);border:1px solid rgba(255,80,80,0.3);padding:2px 8px;border-radius:6px;">banned</span>':''}</div>
+          <div style="font-size:10px;color:var(--text-dim);">${u.createdAt?new Date(u.createdAt.toMillis()).toLocaleDateString():''}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
+          <div>
+            <div style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;">Username</div>
+            <div style="display:flex;gap:6px;">
+              <input type="text" id="uname-${uid}" value="${esc(u.username)}" class="settings-text-input" style="flex:1;" placeholder="new username">
+              <button class="settings-save" onclick="changeUsername('${uid}','${esc(u.username)}')">Save</button>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;">Password</div>
+            <div style="display:flex;gap:6px;">
+              <input type="text" id="upwd-${uid}" placeholder="new password" class="settings-text-input" style="flex:1;">
+              <button class="settings-save" onclick="changePassword('${uid}')">Save</button>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          ${banned
+            ?`<button class="admin-btn admin-btn-clear" onclick="unbanNickname('${esc(u.username)}')">Unban</button>`
+            :`<button class="admin-btn" style="background:var(--red-dim);border:1px solid rgba(255,80,80,0.3);color:var(--red);" onclick="openBanModal('${esc(u.username)}')">Ban</button>`}
+          <button class="admin-btn admin-btn-delete" onclick="deleteAccount('${uid}','${esc(u.username)}')">Delete account</button>
+        </div>
+      </div>`;
+    }).join('');
+  },e=>{el.innerHTML=`<div class="admin-empty">error: ${e.message}</div>`;});
+}
   if(snap.empty){el.innerHTML='<div class="admin-empty">no accounts yet</div>';return;}
   el.innerHTML=snap.docs.map(d=>{
     const u=d.data();
@@ -1407,31 +1450,6 @@ async function loadAccountsTab(){
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
         <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:var(--accent);">~${esc(u.username)}</div>
         <div style="font-size:10px;color:var(--text-dim);">${u.createdAt?new Date(u.createdAt.toMillis()).toLocaleDateString():''}</div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
-        <div>
-          <div style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;">Username</div>
-          <div style="display:flex;gap:6px;">
-            <input type="text" id="uname-${uid}" value="${esc(u.username)}" class="settings-text-input" style="flex:1;" placeholder="new username">
-            <button class="settings-save" onclick="changeUsername('${uid}','${esc(u.username)}')">Save</button>
-          </div>
-        </div>
-        <div>
-          <div style="font-size:10px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;">Password</div>
-          <div style="display:flex;gap:6px;">
-            <input type="text" id="upwd-${uid}" placeholder="new password" class="settings-text-input" style="flex:1;">
-            <button class="settings-save" onclick="changePassword('${uid}')">Save</button>
-          </div>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;">
-        <button class="admin-btn admin-btn-delete" onclick="deleteAccount('${uid}','${esc(u.username)}')">Delete account</button>
-      </div>
-    </div>`;
-  }).join('');
-  }catch(e){el.innerHTML=`<div class="admin-empty">error: ${e.message}</div>`;}
-}
-
 window.changeUsername = async function(uid, oldName){
   const newName = document.getElementById(`uname-${uid}`).value.trim().toLowerCase();
   if(!newName||newName===oldName){showToast('no change');return;}
