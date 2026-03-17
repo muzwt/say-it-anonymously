@@ -10,6 +10,18 @@
 <meta property="og:url" content="https://muzwt.github.io/uplift/">
 <meta property="og:type" content="website">
 <meta name="theme-color" content="#e8ff47">
+<script>
+// Update OG tags dynamically for shared post links
+(function(){
+  const params = new URLSearchParams(location.search);
+  const p = params.get('p');
+  if(p){
+    const decoded = decodeURIComponent(p);
+    document.querySelector('meta[property="og:description"]').setAttribute('content', decoded);
+    document.querySelector('meta[property="og:title"]').setAttribute('content', 'Uplift — ' + decoded.slice(0,60) + (decoded.length>60?'...':''));
+  }
+})();
+</script>
 <title>Uplift</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -258,10 +270,6 @@
   .profile-close:hover{border-color:#444;color:var(--text);}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--bg3);border:1px solid var(--border);color:var(--text-muted);font-size:11px;letter-spacing:0.1em;padding:10px 20px;border-radius:10px;transition:transform 0.3s ease;z-index:9000;white-space:nowrap;}
   .toast.show{transform:translateX(-50%) translateY(0);}
-  .tag{display:inline-block;background:var(--accent-dim);border:1px solid rgba(232,255,71,0.2);color:var(--accent);font-size:10px;padding:2px 8px;border-radius:6px;cursor:pointer;transition:background 0.15s;font-family:'DM Mono',monospace;letter-spacing:0.05em;}
-  .tag:hover{background:rgba(232,255,71,0.15);}
-  .tag.active{background:var(--accent);color:#0d0d0d;}
-  .tags-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
   .empty{text-align:center;color:var(--text-dim);padding:60px 20px;font-family:"Syne",sans-serif;font-weight:600;font-size:16px;}
   footer{padding:48px 0 32px;text-align:center;color:var(--text-dim);font-size:10px;letter-spacing:0.15em;}
 
@@ -358,9 +366,7 @@
       </label>
     </div>
     <textarea id="confessionText" placeholder="What's on your mind..." maxlength="600" rows="4"></textarea>
-    <div style="margin-bottom:14px;">
-      <input type="text" id="tagsInput" placeholder="tags: relationships, school, work" style="width:100%;background:transparent;border:none;border-bottom:1px solid var(--border);border-radius:0;color:var(--text-muted);font-size:12px;padding:4px 0;box-shadow:none!important;" onfocus="this.style.borderBottomColor='var(--accent)'" onblur="this.style.borderBottomColor='var(--border)'">
-    </div>
+
     <div class="form-footer">
       <span class="char-count"><span id="charCount">0</span>/600</span>
       <button class="submit-btn" id="submitBtn" onclick="submitConfession()">Post it</button>
@@ -383,7 +389,6 @@
     <svg style="position:absolute;right:12px;top:50%;transform:translateY(-50%);width:14px;height:14px;stroke:var(--text-muted);fill:none;stroke-width:2;pointer-events:none;" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
   </div>
 
-  <div id="tagFilterBar" class="tags-row" style="margin-bottom:16px;"></div>
   <div id="feed"><div class="loading">loading...</div></div>
   <footer>uplift &mdash; no logs, no traces</footer>
 </div>
@@ -1018,7 +1023,6 @@ window.handleSearch = function(val){
 window.filterByTag = function(tag){
   if(activeTag===tag){ activeTag=null; } else { activeTag=tag; }
   renderSorted();
-  updateTagFilterBar();
 };
 
 function updateTagFilterBar(){
@@ -1043,14 +1047,12 @@ window.setSort = function(s){
 
 function renderSorted(){
   let list=[...allConfessions];
-  if(activeTag) list=list.filter(c=>c.tags&&c.tags.includes(activeTag));
   if(searchQuery){
-    const q=searchQuery.replace(/^#/,'').toLowerCase();
+    const q=searchQuery.toLowerCase();
     list=list.filter(c=>
       (c.text||'').toLowerCase().includes(q)||
       (c.nickname||'').toLowerCase().includes(q)||
-      (c.realUsername||'').toLowerCase().includes(q)||
-      (c.tags||[]).some(t=>t.toLowerCase().includes(q))
+      (c.realUsername||'').toLowerCase().includes(q)
     );
   }
   if(currentSort==='bookmarks') list=list.filter(c=>bookmarks[c.id]);
@@ -1160,7 +1162,6 @@ onSnapshot(query(collection(db,'confessions'),orderBy('createdAt','desc')),snap=
   knownConfessionIds = new Set(snap.docs.map(d=>d.id));
   autoDeleteOld(allConfessions);
   renderSorted();
-  updateTagFilterBar();
 });
 
 // ── ACTIONS ───────────────────────────────────────────────────
@@ -1169,8 +1170,6 @@ window.submitConfession = async function(){
   if(!isAdmin&&slowmodeDelay>0&&Date.now()-lastPostTime<slowmodeDelay*1000) return;
   if(!currentUser){showAuthScreen();return;}
   if(!isAdmin&&bannedNames.some(b=>(b.name||b)===(currentUser.username||'').toLowerCase())){showToast('you are banned');return;}
-  const rawTags = document.getElementById('tagsInput').value;
-  const tags = rawTags.split(',').map(t=>t.trim().toLowerCase().replace(/[^a-z0-9]/g,'')).filter(Boolean).slice(0,5);
   const nick=anonMode?'anonymous':filterText(currentUser.username);
   const rawText=document.getElementById('confessionText').value.trim();
   if(!rawText) return;
@@ -1184,7 +1183,6 @@ window.submitConfession = async function(){
     localStorage.setItem('myTokens',JSON.stringify(myTokens));
     localStorage.setItem('myNick',nick);
     document.getElementById('confessionText').value='';
-    document.getElementById('tagsInput').value='';
     document.getElementById('charCount').textContent='0';
     showToast(approvalMode&&!isAdmin?'submitted — awaiting approval':'confession posted');
     startSlowmode();
@@ -1681,7 +1679,9 @@ window.banNickname=async function(){
 };
 
 window.sharePost = function(id){
-  const url = `${location.origin}${location.pathname}?post=${id}`;
+  const conf = allConfessions.find(c=>c.id===id);
+  const preview = conf ? encodeURIComponent(conf.text.slice(0,120)) : '';
+  const url = `${location.origin}${location.pathname}?post=${id}&p=${preview}`;
   if(navigator.clipboard){
     navigator.clipboard.writeText(url).then(()=>showToast('link copied!'));
   } else {
