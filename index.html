@@ -1894,13 +1894,16 @@ document.addEventListener('keydown',function(e){
 function startPresence(){
   if(!browserId) return;
   const presenceRef = doc(db,'presence',browserId);
-  const heartbeat = () => setDoc(presenceRef,{uid:browserId,user:currentUser?.username||'anonymous',lastSeen:serverTimestamp()},{merge:true});
+  const heartbeat = () => setDoc(presenceRef,{uid:browserId,lastSeen:Date.now()},{merge:true});
   heartbeat();
-  setInterval(heartbeat, 30000);
+  setInterval(heartbeat, 20000);
   window.addEventListener('beforeunload',()=>deleteDoc(presenceRef));
   onSnapshot(collection(db,'presence'),snap=>{
     const cutoff = Date.now()-60000;
-    const active = snap.docs.filter(d=>{ const t=d.data().lastSeen; return t&&t.toMillis()>cutoff; });
+    const active = snap.docs.filter(d=>{
+      const t = d.data().lastSeen;
+      return typeof t === 'number' && t > cutoff;
+    });
     const el=document.getElementById('onlineNum');
     if(el) el.textContent=Math.max(1,active.length);
   });
