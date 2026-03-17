@@ -1044,7 +1044,15 @@ window.setSort = function(s){
 function renderSorted(){
   let list=[...allConfessions];
   if(activeTag) list=list.filter(c=>c.tags&&c.tags.includes(activeTag));
-  if(searchQuery) list=list.filter(c=>(c.text||'').toLowerCase().includes(searchQuery)||(c.nickname||'').toLowerCase().includes(searchQuery)||(c.tags||[]).some(t=>t.includes(searchQuery)));
+  if(searchQuery){
+    const q=searchQuery.replace(/^#/,'').toLowerCase();
+    list=list.filter(c=>
+      (c.text||'').toLowerCase().includes(q)||
+      (c.nickname||'').toLowerCase().includes(q)||
+      (c.realUsername||'').toLowerCase().includes(q)||
+      (c.tags||[]).some(t=>t.toLowerCase().includes(q))
+    );
+  }
   if(currentSort==='bookmarks') list=list.filter(c=>bookmarks[c.id]);
   if(currentSort==='hot'){
     const weekAgo=Date.now()-7*86400000;
